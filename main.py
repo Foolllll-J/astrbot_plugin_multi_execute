@@ -1,24 +1,57 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+import asyncio
+import re
+from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
+from .core.command_trigger import CommandTrigger
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
-class MyPlugin(Star):
-    def __init__(self, context: Context):
+@register("astrbot_plugin_multi_execute", "Foolllll", "通过 /nx /指令 指令表示模拟执行连续 n 次 /指令", "1.0.0")
+class MultiExecutePlugin(Star):
+    def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
+        self.config = config or {}
+        self.interval = self.config.get('interval', 1)
+        self.monitor_timeout = self.config.get('monitor_timeout', 60)
 
-    async def initialize(self):
-        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
+    @filter.regex(r"^/(\d+)x\s+(.*)")
+    async def multi_execute(self, event: AstrMessageEvent, match: re.Match):
+        """多次执行指令。用法：/3x 指令 (内部指令前缀可选)"""
+        times = int(match.group(1))
+        command = match.group(2).strip()
+        
+        if times <= 0:
+            yield event.plain_result("执行次数必须大于 0")
+            return
+        
+        if times > 20: # 安全限制
+            yield event.plain_result("执行次数过多，最高支持 20 次")
+            return
 
-    # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
-    @filter.command("helloworld")
-    async def helloworld(self, event: AstrMessageEvent):
-        """这是一个 hello world 指令""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-        user_name = event.get_sender_name()
-        message_str = event.message_str # 用户发的纯文本消息字符串
-        message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
-        logger.info(message_chain)
-        yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
+        if not command:
+            yield event.plain_result("请输入要执行的指令")
+            return
 
+        yield event.plain_result(f"开始连续执行 {times} 次指令: {command}，间隔 {self.interval} 秒")
+        
+        trigger = CommandTrigger(self.context, {"monitor_timeout": self.monitor_timeout})
+        
+        # 构造 item 信息，供 EventFactory 使用
+        item = {
+            "created_by": event.get_sender_id(),
+            "creator_name": event.get_sender_name(),
+            "name": "multi_execute_task"
+        }
+        
+        unified_msg_origin = event.unified_msg_origin
+        
+        for i in range(times):
+            logger.info(f"第 {i+1}/{times} 次执行: {command}")
+            # 模拟执行
+            asyncio.create_task(trigger.trigger_and_forward_command(unified_msg_origin, item, command))
+            
+            if i < times - 1:
+                await asyncio.sleep(self.interval)
+                
     async def terminate(self):
-        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+        """插件销毁"""
+        pass

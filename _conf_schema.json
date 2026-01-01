@@ -1,0 +1,14 @@
+{
+    "interval": {
+        "description": "执行间隔时间 (秒)",
+        "hint": "连续执行指令之间的间隔时间，单位为秒。",
+        "type": "int",
+        "default": 1
+    },
+    "monitor_timeout": {
+        "description": "指令监控超时时间 (秒)",
+        "hint": "单次指令执行的监控超时时间。",
+        "type": "int",
+        "default": 60
+    }
+}
