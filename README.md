@@ -23,7 +23,7 @@
 - **效果**：Bot 将连续执行 3 次 `/签到` 指令。
 
 
-## ⚙️ 配置项说明
+## ⚙️ 配置说明
 
 在 AstrBot 管理面板中，你可以找到以下配置项：
 
@@ -36,7 +36,7 @@
 
 
 
-## 支持
+## ❤️ 支持
 
 * [帮助文档](https://astrbot.app)
 * 如果您在使用中遇到问题，欢迎提交 [Issue](https://github.com/Foolllll-J/astrbot_plugin_multi_execute/issues)。
