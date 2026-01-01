@@ -61,7 +61,7 @@ class CommandTrigger:
             token = _forwarding_lock.set(True)
             try:
                 if chain and hasattr(chain, 'chain') and chain.chain:
-                    logger.info(f"[拦截成功] {source_info} -> 正在转发: {command}")
+                    logger.debug(f"MultiExecute: [拦截成功] {source_info} -> 正在转发: {command}")
                     self.captured_messages.append(chain)
                     await self.context.send_message(target_dest, chain)
             except Exception:
@@ -162,4 +162,4 @@ class CommandTrigger:
             event.send = original_send
             if original_call and hasattr(event, 'bot') and hasattr(event.bot, 'api'):
                 event.bot.api.call_action = original_call
-            logger.info(f"[任务结束] {command} 监控退出")
+            logger.debug(f"MultiExecute: [任务结束] {command} 监控退出")

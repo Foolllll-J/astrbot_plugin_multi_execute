@@ -18,12 +18,11 @@ class EventFactory:
             # 使用框架提供的方法通过平台ID获取平台实例
             platform_inst = self.context.get_platform_inst(platform_id)
             if platform_inst:
-                logger.debug(f"成功通过平台ID获取平台实例: {platform_id}")
                 return platform_inst
         except Exception as e:
-            logger.warning(f"通过context.get_platform_inst获取平台实例失败: {e}")
+            logger.debug(f"通过context.get_platform_inst获取平台实例失败: {e}")
 
-        logger.error(f"无法获取平台实例: {platform_id}")
+        logger.debug(f"无法获取平台实例: {platform_id}")
         return None
 
     def create_event(self, unified_msg_origin: str, command: str, creator_id: str, creator_name: str = None) -> AstrMessageEvent:
@@ -48,14 +47,14 @@ class EventFactory:
                     message_type = MessageType.FRIEND_MESSAGE
 
         # 添加调试日志
-        logger.info(f"create_event: platform_id={platform_id}, unified_msg_origin={unified_msg_origin}")
+        logger.debug(f"create_event: platform_id={platform_id}, unified_msg_origin={unified_msg_origin}")
 
         # 获取平台实例 - 使用原始的platform_id（如"本地"）
         platform_instance = self._get_platform_instance(platform_id)
 
         # 获取真实的平台类型
         platform_type = self._get_platform_type_from_instance(platform_instance, unified_msg_origin)
-        logger.info(f"create_event: 获取到的平台类型={platform_type}")
+        logger.debug(f"create_event: 获取到的平台类型={platform_type}")
 
         # 创建基础消息对象
         msg = self._create_message_object(command, session_id, message_type, creator_id, creator_name, platform_instance)
@@ -76,7 +75,7 @@ class EventFactory:
                     if hasattr(meta, 'name'):
                         return meta.name
             except Exception as e:
-                logger.warning(f"从平台实例获取类型失败: {e}")
+                logger.debug(f"从平台实例获取类型失败: {e}")
 
         # 回退到基于字符串的判断
         return self._get_platform_type_from_origin(unified_msg_origin)

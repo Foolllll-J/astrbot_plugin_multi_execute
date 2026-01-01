@@ -1,9 +1,24 @@
 {
+    "whitelist": {
+        "description": "使用者白名单",
+        "hint": "填入用户 ID 列表，不填表示所有人可用。Bot 管理员默认可用。",
+        "type": "list",
+        "items": {
+            "type": "string"
+        },
+        "default": []
+    },
     "interval": {
         "description": "执行间隔时间 (秒)",
-        "hint": "连续执行指令之间的间隔时间，单位为秒。",
+        "hint": "连续执行指令之间的间隔时间。",
         "type": "int",
         "default": 1
+    },
+    "max_times": {
+        "description": "最大执行次数限制",
+        "hint": "单次指令连续执行的最大次数限制。",
+        "type": "int",
+        "default": 10
     },
     "monitor_timeout": {
         "description": "指令监控超时时间 (秒)",
