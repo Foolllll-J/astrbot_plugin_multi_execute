@@ -44,7 +44,8 @@ class CommandTrigger:
             unified_msg_origin, 
             command, 
             item.get('created_by', 'timer'), 
-            item.get('creator_name', 'Timer')
+            item.get('creator_name', 'Timer'),
+            item.get('is_admin', False)
         )
 
         # 记录原始方法
@@ -63,6 +64,11 @@ class CommandTrigger:
                 if chain and hasattr(chain, 'chain') and chain.chain:
                     logger.debug(f"MultiExecute: [拦截成功] {source_info} -> 正在转发: {command}")
                     self.captured_messages.append(chain)
+                    
+                    # 确保转发时携带正确的 Bot self_id
+                    if not hasattr(chain, 'self_id') or not chain.self_id:
+                        chain.self_id = getattr(event, 'self_id', None)
+                    
                     await self.context.send_message(target_dest, chain)
             except Exception:
                 logger.error(f"[转发失败] {source_info} 发生异常:\n{traceback.format_exc()}")
@@ -123,7 +129,7 @@ class CommandTrigger:
                         if stype == "text":
                             msg_chain.chain.append(Plain(data.get("text", "")))
                         elif stype in ["image", "video", "record"]:
-                            # 获取路径 or URL
+                            # 获取路径或URL
                             file_val = data.get("file") or data.get("url")
                             if not file_val: continue
                             

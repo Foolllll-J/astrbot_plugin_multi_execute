@@ -64,6 +64,7 @@ class MultiExecutePlugin(Star):
         item = {
             "created_by": event.get_sender_id(),
             "creator_name": event.get_sender_name(),
+            "is_admin": event.is_admin(),
             "name": "multi_execute_task"
         }
         
