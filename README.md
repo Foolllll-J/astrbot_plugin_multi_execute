@@ -1,10 +1,20 @@
+<div align="center">
+
 # ⚡ 指令倍增器
+
+<i>🚀 让指令执行效率翻倍！</i>
 
 ![License](https://img.shields.io/badge/license-AGPL--3.0-green?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python&logoColor=white)
 ![AstrBot](https://img.shields.io/badge/framework-AstrBot-ff6b6b?style=flat-square)
 
-一款为 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 设计的指令倍增器。用户可通过发送 `nx 指令` ，模拟连续执行 n 次目标指令。
+</div>
+
+## ✨ 简介
+
+一款为 [**AstrBot**](https://github.com/AstrBotDevs/AstrBot) 设计的指令倍增器。用户可以通过发送 `nx 指令` 格式的消息，模拟连续执行 n 次目标指令，极大提高某些重复性指令的操作效率。
+
+---
 
 ## 🌟 功能特性
 
@@ -12,6 +22,8 @@
 - **安全限制**：可配置单次最大执行次数，防止滥用。
 - **权限管理**：支持白名单模式，仅允许特定用户使用，Bot 管理员默认拥有权限。
 - **灵活配置**：支持设置指令执行的间隔时间。
+
+---
 
 ## 🚀 使用方法
 
@@ -22,6 +34,8 @@
 - **示例**：`3x /签到`
 - **效果**：Bot 将连续执行 3 次 `/签到` 指令。
 
+
+---
 
 ## ⚙️ 配置说明
 
@@ -36,8 +50,18 @@
 
 
 
+---
+
 ## ❤️ 支持
 
-* [帮助文档](https://astrbot.app)
-* 如果您在使用中遇到问题，欢迎提交 [Issue](https://github.com/Foolllll-J/astrbot_plugin_multi_execute/issues)。
+* [AstrBot 帮助文档](https://astrbot.app)
+* 如果您在使用中遇到问题，欢迎在本仓库提交 [Issue](https://github.com/Foolllll-J/astrbot_plugin_multi_execute/issues)。
 
+
+---
+
+<div align="center">
+
+**如果本插件对你有帮助，欢迎点个 ⭐ Star 支持一下！**
+
+</div>
