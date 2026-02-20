@@ -1,6 +1,6 @@
 name: astrbot_plugin_multi_execute
 display_name: 指令倍增器
 desc: 通过发送 nx /指令 表示模拟执行连续 n 次 /指令，支持设置间隔时间。
-version: v1.0
+version: v1.1
 author: Foolllll
 repo: https://github.com/Foolllll-J/astrbot_plugin_multi_execute

@@ -7,8 +7,7 @@ from astrbot.api import logger
 from astrbot.api.message_components import Plain, At, Image, Video, Record, Face
 from astrbot.core.message.message_event_result import MessageChain
 
-# 协程局部锁，防止转发时产生无限递归
-_forwarding_lock = contextvars.ContextVar("forwarding_lock", default=False)
+_forwarding_lock = contextvars.ContextVar("forwarding_lock", default=False)  # 协程局部锁，防止转发时产生无限递归
 _is_timer_execution = contextvars.ContextVar("is_timer_execution", default=False)
 
 class CommandTrigger:
@@ -35,7 +34,7 @@ class CommandTrigger:
             return path_str[6:]
         return path_str
 
-    async def trigger_and_forward_command(self, unified_msg_origin: str, item: dict, command: str):
+    async def trigger_and_forward_command(self, unified_msg_origin: str, item: dict, command: str, is_admin: bool = True, original_components: list = None, self_id: str = None):
         target_dest = self._get_original_session_id(unified_msg_origin)
         
         from .event_factory import EventFactory
@@ -45,7 +44,9 @@ class CommandTrigger:
             command, 
             item.get('created_by', 'timer'), 
             item.get('creator_name', 'Timer'),
-            item.get('is_admin', False)
+            original_components=original_components,
+            is_admin=is_admin,
+            self_id=self_id
         )
 
         # 记录原始方法
@@ -62,12 +63,13 @@ class CommandTrigger:
             token = _forwarding_lock.set(True)
             try:
                 if chain and hasattr(chain, 'chain') and chain.chain:
-                    logger.debug(f"MultiExecute: [拦截成功] {source_info} -> 正在转发: {command}")
+                    logger.info(f"[拦截成功] {source_info} -> 正在转发: {command}")
                     self.captured_messages.append(chain)
                     
                     # 确保转发时携带正确的 Bot self_id
                     if not hasattr(chain, 'self_id') or not chain.self_id:
-                        chain.self_id = getattr(event, 'self_id', None)
+                        if hasattr(event, 'get_self_id'):
+                             chain.self_id = event.get_self_id()
                     
                     await self.context.send_message(target_dest, chain)
             except Exception:
@@ -92,17 +94,13 @@ class CommandTrigger:
                 # 1. 必须在标记了 _is_timer_execution 的协程上下文中运行
                 # 2. 必须是发送消息类的 API
                 # 3. 必须是同一个 bot 实例 (self_id 匹配)
-                
+
                 if not _is_timer_execution.get():
                     return await original_call(action, **params)
                 
-                current_self_id = params.get("self_id") or (getattr(event.bot, 'self_id', None))
-                target_self_id = getattr(event, 'self_id', None)
-                
                 is_msg_api = action in ["send_msg", "send_group_msg", "send_private_msg", "send_private_forward_msg", "send_group_forward_msg"]
-                is_same_bot = str(current_self_id) == str(target_self_id)
                 
-                if _forwarding_lock.get() or not (is_msg_api and is_same_bot):
+                if _forwarding_lock.get() or not is_msg_api:
                     return await original_call(action, **params)
 
                 # 提取消息内容
@@ -168,4 +166,4 @@ class CommandTrigger:
             event.send = original_send
             if original_call and hasattr(event, 'bot') and hasattr(event.bot, 'api'):
                 event.bot.api.call_action = original_call
-            logger.debug(f"MultiExecute: [任务结束] {command} 监控退出")
+            logger.info(f"[任务结束] {command} 监控退出")
