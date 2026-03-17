@@ -35,7 +35,9 @@ class EventFactory:
         creator_name: str = None,
         original_components: list = None,
         is_admin: bool = False,
-        self_id: str = None
+        self_id: str = None,
+        sender_id: str = None,
+        sender_name: str = None
     ) -> AstrMessageEvent:
         """创建事件对象，根据平台类型自动选择正确的事件类"""
 
@@ -80,10 +82,13 @@ class EventFactory:
         )
         
         _is_admin = is_admin
+        _sender_id = sender_id if sender_id else creator_id
+        _sender_name = sender_name if sender_name else (creator_name or "用户")
+
         event.is_admin = lambda: _is_admin
-        event.get_sender_id = lambda: creator_id
-        event.get_sender_name = lambda: creator_name or "用户"
-        
+        event.get_sender_id = lambda: _sender_id
+        event.get_sender_name = lambda: _sender_name
+
         return event
 
     def _get_platform_type_from_instance(self, platform_instance, unified_msg_origin: str) -> str:

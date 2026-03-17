@@ -26,16 +26,28 @@
         "type": "int",
         "default": 10
     },
-    "monitor_timeout": {
-        "description": "指令监控超时时间 (秒)",
-        "hint": "单次指令执行的监控超时时间。",
-        "type": "int",
-        "default": 60
-    },
     "show_start_message": {
         "description": "显示开始执行提示",
-        "hint": "开启后，开始连续执行时会发送一条提示消息（如：开始连续执行 3 次...）。",
+        "hint": "开启后，模拟执行时会发送一条提示消息（如：开始连续执行 3 次...）。",
         "type": "bool",
-        "default": true
+        "default": false
+    },
+    "keywords": {
+        "description": "免唤醒指令",
+        "hint": "无需唤醒前缀即可触发的指令。",
+        "type": "list",
+        "items": {
+            "type": "string"
+        },
+        "default": []
+    },
+    "keyword_whitelist_groups": {
+        "description": "免唤醒白名单群组",
+        "hint": "配置允许使用免唤醒触发的群组，为空表示全局可用。",
+        "type": "list",
+        "items": {
+            "type": "string"
+        },
+        "default": []
     }
 }
