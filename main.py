@@ -16,11 +16,18 @@ class MultiExecutePlugin(Star):
         self.max_times = self.config.get('max_times', 20)
         self.prefix_mode = self.config.get('prefix_mode', True)
         self.show_start_message = self.config.get('show_start_message', True)
+        self.all_commands_no_wake = self.config.get('all_commands_no_wake', False)
+        self.no_wake_blacklist = set(self.config.get('no_wake_blacklist', []))
         self.no_wake_commands = self._parse_commands()
-        self.no_wake_whitelist_groups = [str(sid) for sid in self.config.get('keyword_whitelist_groups', [])]
+        self.no_wake_whitelist_groups = [str(sid) for sid in self.config.get('no_wake_whitelist_groups', [])]
 
         # 创建事件工厂
         self.event_factory = EventFactory(context)
+
+    async def initialize(self):
+        """插件初始化时加载所有指令"""
+        if self.all_commands_no_wake:
+            await self._initialize_all_commands()
 
     def _get_wake_prefixes(self) -> list[str]:
         """获取系统配置的唤醒前缀"""
@@ -39,7 +46,7 @@ class MultiExecutePlugin(Star):
 
     def _parse_commands(self) -> set:
         """解析配置中的免唤醒指令列表，返回指令集合"""
-        commands_config = self.config.get("keywords", [])
+        commands_config = self.config.get("no_wake_commands", [])
         result = set()
 
         for item in commands_config:
@@ -50,6 +57,42 @@ class MultiExecutePlugin(Star):
             logger.info(f"[指令模拟器] 插件已加载，共 {len(result)} 个免唤醒指令: {list(result)}")
 
         return result
+
+    async def _initialize_all_commands(self):
+        """初始化时获取所有已注册的指令，并与现有免唤醒指令取并集"""
+        try:
+            from astrbot.core.star.command_management import list_commands
+            commands = await list_commands()
+
+            # 提取所有启用的指令名称
+            all_cmd_names = set()
+            for cmd in commands:
+                if cmd.get("enabled", True):
+                    # 获取指令名称
+                    effective_cmd = cmd.get("effective_command", "")
+                    if effective_cmd:
+                        all_cmd_names.add(effective_cmd)
+
+                    # 获取指令别名
+                    aliases = cmd.get("aliases", [])
+                    for alias in aliases:
+                        if alias and alias.strip():
+                            all_cmd_names.add(alias.strip())
+
+            # 应用黑名单过滤
+            if self.no_wake_blacklist:
+                filtered_count = len(all_cmd_names)
+                all_cmd_names = all_cmd_names - self.no_wake_blacklist
+                filtered_count = filtered_count - len(all_cmd_names)
+                logger.info(f"[指令模拟器] 黑名单已过滤 {filtered_count} 个指令: {self.no_wake_blacklist}")
+
+            # 与现有免唤醒指令取并集
+            self.no_wake_commands.update(all_cmd_names)
+
+            logger.info(f"[指令模拟器] 全局免唤醒模式已启用，共 {len(all_cmd_names)} 个指令可免唤醒触发")
+
+        except Exception as e:
+            logger.error(f"[指令模拟器] 获取所有指令失败: {e}")
 
     def _is_allowed(self, event: AstrMessageEvent):
         """检查用户是否有权限使用该插件"""
@@ -347,11 +390,11 @@ class MultiExecutePlugin(Star):
         """插件销毁"""
         pass
 
-    def _extract_at_user(self, event: AstrMessageEvent) -> str | None:
-        """从消息链中提取第一个非bot的艾特用户ID
+    def _extract_at_user(self, event: AstrMessageEvent) -> tuple[str | None, str | None]:
+        """从消息链中提取第一个非bot的艾特用户ID和用户名
 
         Returns:
-            user_id (字符串类型) 或 None
+            (user_id, user_name) 元组，user_name 可能是 None
         """
         messages = event.get_messages()
         self_id = event.get_self_id()
@@ -360,8 +403,10 @@ class MultiExecutePlugin(Star):
                 # 跳过艾特机器人的情况
                 if self_id and str(comp.qq) == str(self_id):
                     continue
-                return str(comp.qq)  # 确保返回字符串类型
-        return None
+                user_id = str(comp.qq)
+                user_name = getattr(comp, 'name', None) or None
+                return user_id, user_name
+        return None, None
 
     def _extract_after_target_at(self, event: AstrMessageEvent, target_user_id: str) -> list:
         """提取目标用户艾特之后的所有消息组件
@@ -407,8 +452,8 @@ class MultiExecutePlugin(Star):
             event.stop_event()
             return
 
-        # 提取艾特用户ID（跳过bot本身的艾特）
-        target_user_id = self._extract_at_user(event)
+        # 提取艾特用户ID和名称（跳过bot本身的艾特）
+        target_user_id, target_user_name = self._extract_at_user(event)
         if not target_user_id:
             yield event.plain_result("请先艾特要模拟的用户。用法：模拟 @用户 指令")
             event.stop_event()
@@ -455,7 +500,10 @@ class MultiExecutePlugin(Star):
                         else:
                             new_chain.insert(0, Plain(added_prefix))
 
-        start_msg = f"开始模拟用户 {target_user_id} 执行指令: {command}"
+        # 使用获取到的用户名，如果没有则使用默认值
+        final_user_name = target_user_name if target_user_name else f"用户{target_user_id}"
+
+        start_msg = f"开始模拟用户 {final_user_name} 执行指令: {command}"
         logger.info(start_msg)
         if self.show_start_message:
             yield event.plain_result(start_msg)
@@ -474,12 +522,12 @@ class MultiExecutePlugin(Star):
             unified_msg_origin=event.unified_msg_origin,
             command=command,
             creator_id=target_user_id,
-            creator_name=f"用户{target_user_id}",
+            creator_name=final_user_name,
             original_components=new_chain,
             is_admin=target_is_admin,
             self_id=self_id,
             sender_id=target_user_id,
-            sender_name=f"用户{target_user_id}"
+            sender_name=final_user_name
         )
 
         # 将新事件放入事件队列
