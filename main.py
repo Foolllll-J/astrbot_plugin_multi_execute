@@ -117,25 +117,42 @@ class MultiExecutePlugin(Star):
         group_id = str(group_id).split('#')[0]
         return group_id in self.no_wake_whitelist_groups
 
-    def _extract_non_text_components(self, event: AstrMessageEvent) -> list:
-        """
-        从原始消息中提取非文本组件（如 At 组件）
-        """
-        non_text_components = []
+    def _extract_message_components(self, event: AstrMessageEvent) -> list:
+        """从原始消息中提取完整消息组件链"""
+        components = []
 
         try:
             if hasattr(event, 'message_obj') and hasattr(event.message_obj, 'message'):
                 message_chain = event.message_obj.message
-                if message_chain:
-                    for comp in message_chain:
-                        # 保留 At 组件（真正的艾特）
-                        if isinstance(comp, At):
-                            non_text_components.append(comp)
-                            logger.debug(f"[指令模拟器] 提取到 At 组件: qq={comp.qq}")
+            else:
+                message_chain = event.get_messages()
+
+            if message_chain:
+                for comp in message_chain:
+                    components.append(comp)
         except (AttributeError, TypeError) as e:
             logger.warning(f"[指令模拟器] 提取消息组件时出错: {e}")
 
-        return non_text_components
+        return components
+
+    def _build_prefixed_components(self, components: list, prefix: str) -> list:
+        """在消息组件链前补充唤醒前缀，保持原始组件顺序"""
+        if not prefix:
+            return list(components) if components else []
+
+        if not components:
+            return [Plain(prefix)]
+
+        first = components[0]
+        new_components = []
+        if isinstance(first, Plain):
+            new_components.append(Plain(prefix + first.text))
+            new_components.extend(components[1:])
+        else:
+            new_components.append(Plain(prefix))
+            new_components.extend(components)
+
+        return new_components
 
     def _is_valid_command_match(self, text: str, command: str) -> bool:
         """检查指令匹配是否有效（严格空格分隔）
@@ -225,8 +242,9 @@ class MultiExecutePlugin(Star):
             command_prefix = wake_prefixes[0] if wake_prefixes else "/"
             new_command = f"{command_prefix}{matched_command}{suffix}"
 
-            # 提取原始消息中的非文本组件（如 At 组件）
-            original_components = self._extract_non_text_components(event)
+            # 提取原始消息组件，并补充唤醒前缀
+            original_components = self._extract_message_components(event)
+            prefixed_components = self._build_prefixed_components(original_components, command_prefix)
 
             # 获取原始事件的管理员状态
             is_admin = False
@@ -236,8 +254,8 @@ class MultiExecutePlugin(Star):
                 pass
 
             logger.info(f"[指令模拟器] 匹配免唤醒指令 '{matched_command}' → 转换为 '{new_command}'")
-            if original_components:
-                logger.info(f"[指令模拟器] 保留 {len(original_components)} 个非文本组件")
+            if prefixed_components:
+                logger.info(f"[指令模拟器] 保留 {len(prefixed_components)} 个原始消息组件")
 
             try:
                 # 获取发送者信息
@@ -250,7 +268,7 @@ class MultiExecutePlugin(Star):
                     command=new_command,
                     creator_id=sender_id,
                     creator_name=sender_name,
-                    original_components=original_components,
+                    original_components=prefixed_components,
                     is_admin=is_admin,
                     self_id=event.get_self_id()
                 )

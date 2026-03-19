@@ -1,6 +1,6 @@
 name: astrbot_plugin_multi_execute
 display_name: 指令模拟器
 desc: 支持免唤醒触发指令、连续执行指令和模拟用户执行指令，可设置间隔时间和权限控制。
-version: v1.2.1
+version: v1.2.2
 author: Foolllll
 repo: https://github.com/Foolllll-J/astrbot_plugin_multi_execute
