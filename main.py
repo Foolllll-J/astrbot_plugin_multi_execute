@@ -403,6 +403,8 @@ class MultiExecutePlugin(Star):
 
             if i < times - 1:
                 await asyncio.sleep(self.interval)
+        
+        yield event.stop_event()
                 
     async def terminate(self):
         """插件销毁"""
