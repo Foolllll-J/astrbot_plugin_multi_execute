@@ -1,10 +1,16 @@
 import asyncio
+import random
 import re
 from astrbot.api.event import filter, AstrMessageEvent
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context, Star
 from astrbot.api import logger
 from astrbot.api.message_components import Plain, At
+from astrbot.core.star.command_management import list_commands
+from astrbot.core.star.command_management import list_commands
+
 from .core.event_factory import EventFactory
+
+DISGUISE_REPLY_EXTRA_KEY = "__multi_execute_disguise_reply"
 
 
 class MultiExecutePlugin(Star):
@@ -12,16 +18,26 @@ class MultiExecutePlugin(Star):
         super().__init__(context)
         self.config = config or {}
         self.whitelist = self.config.get('whitelist', [])
-        self.interval = self.config.get('interval', 1)
-        self.max_times = self.config.get('max_times', 20)
+
+        multiply_section_config = self.config.get("multiply", {})
+        if not isinstance(multiply_section_config, dict):
+            multiply_section_config = {}
+
+        no_wake_section_config = self.config.get("no_wake", {})
+        if not isinstance(no_wake_section_config, dict):
+            no_wake_section_config = {}
+
+        self.interval = multiply_section_config.get('interval', 1)
+        self.max_times = multiply_section_config.get('max_times', 10)
         self.prefix_mode = self.config.get('prefix_mode', True)
         self.show_start_message = self.config.get('show_start_message', True)
-        self.all_commands_no_wake = self.config.get('all_commands_no_wake', False)
-        self.no_wake_blacklist = set(self.config.get('no_wake_blacklist', []))
-        self.no_wake_commands = self._parse_commands()
+        self.all_commands_no_wake = no_wake_section_config.get('all_commands_no_wake', False)
+        self.no_wake_blacklist = set(no_wake_section_config.get('no_wake_blacklist', []))
+        self.no_wake_commands = self._parse_commands(no_wake_section_config.get('no_wake_commands', []))
         self._manual_no_wake_commands = set(self.no_wake_commands)
         self._plugin_no_wake_commands: dict[str, set[str]] = {}
-        self.no_wake_whitelist_groups = [str(sid) for sid in self.config.get('no_wake_whitelist_groups', [])]
+        self.no_wake_whitelist_groups = [str(sid) for sid in no_wake_section_config.get('no_wake_whitelist_groups', [])]
+        self.disguise_rules = self._load_disguise_rules(self.config.get('disguise', []))
 
         # 创建事件工厂
         self.event_factory = EventFactory(context)
@@ -65,6 +81,59 @@ class MultiExecutePlugin(Star):
 
         return command_names
 
+    def _load_disguise_rules(self, rules_config: list | None) -> dict[str, list[str]]:
+        """加载伪装指令配置，返回 {指令名: 回复列表}。"""
+        if not isinstance(rules_config, list):
+            return {}
+
+        rules: dict[str, list[str]] = {}
+
+        for raw_rule in rules_config:
+            if not isinstance(raw_rule, dict):
+                continue
+
+            for target_command in raw_rule.get("target_command", []):
+                target_command = self._normalize_disguise_command(target_command)
+                if not target_command:
+                    continue
+
+                reply_texts = raw_rule.get("reply_texts", [])
+                normalized_texts: list[str] = []
+
+                if isinstance(reply_texts, list):
+                    for text in reply_texts:
+                        if isinstance(text, str):
+                            text = text.strip()
+                            if text:
+                                normalized_texts.append(text)
+                elif isinstance(reply_texts, str):
+                    t = reply_texts.strip()
+                    if t:
+                        normalized_texts.append(t)
+
+                rules[target_command] = normalized_texts
+
+        return rules
+
+    def _normalize_disguise_command(self, command: str) -> str:
+        """统一归一化伪装目标指令，去除前缀并仅保留指令名。"""
+        if not isinstance(command, str):
+            return ""
+
+        text = command.strip()
+        if not text:
+            return ""
+
+        prefixes = self._get_wake_prefixes()
+        if not prefixes:
+            prefixes = ["/"]
+
+        for prefix in prefixes:
+            if prefix and text.startswith(prefix):
+                text = text[len(prefix):].lstrip()
+                break
+
+        return text.split(" ", 1)[0]
     def _get_activated_plugin_index(self) -> tuple[set[str], set[str]]:
         """获取当前已激活插件的 module_path/name 索引。"""
         activated_modules: set[str] = set()
@@ -146,13 +215,7 @@ class MultiExecutePlugin(Star):
         """应用免唤醒黑名单过滤。"""
         if not self.no_wake_blacklist:
             return command_names
-
-        before_count = len(command_names)
-        filtered_commands = command_names - self.no_wake_blacklist
-        filtered_count = before_count - len(filtered_commands)
-        if filtered_count > 0:
-            logger.info(f"[指令模拟器] 黑名单已过滤 {filtered_count} 个指令: {self.no_wake_blacklist}")
-        return filtered_commands
+        return command_names - self.no_wake_blacklist
 
     def _get_wake_prefixes(self) -> list[str]:
         """获取系统配置的唤醒前缀"""
@@ -169,9 +232,9 @@ class MultiExecutePlugin(Star):
             logger.warning(f"获取唤醒前缀失败: {e}")
             return []
 
-    def _parse_commands(self) -> set:
+    def _parse_commands(self, commands_config: list | None = None) -> set:
         """解析配置中的免唤醒指令列表，返回指令集合"""
-        commands_config = self.config.get("no_wake_commands", [])
+        commands_config = commands_config or []
         result = set()
 
         for item in commands_config:
@@ -183,10 +246,60 @@ class MultiExecutePlugin(Star):
 
         return result
 
+    def _get_disguise_reply_texts(self, command: str) -> list[str] | None:
+        """获取目标指令的伪装回复列表。None 表示无配置，空列表表示静默。"""
+        if not isinstance(self.disguise_rules, dict):
+            return None
+
+        target_command = self._extract_command_key(command)
+        if not target_command:
+            return None
+
+        if target_command not in self.disguise_rules:
+            return None
+
+        texts = self.disguise_rules.get(target_command, [])
+        return list(texts) if isinstance(texts, list) else []
+
+    def _extract_command_key(self, command: str) -> str:
+        """从完整命令中提取用于伪装匹配的指令名（去除前缀与参数）。"""
+        if not isinstance(command, str):
+            return ""
+
+        text = command.strip()
+        if not text:
+            return ""
+
+        prefixes = self._get_wake_prefixes()
+        if not prefixes:
+            prefixes = ["/"]
+
+        matched_prefix = ""
+        for prefix in prefixes:
+            if prefix and text.startswith(prefix):
+                matched_prefix = prefix
+                break
+
+        if matched_prefix:
+            text = text[len(matched_prefix):].lstrip()
+        if not text:
+            return ""
+
+        return text.split(" ", 1)[0]
+
+    def _apply_disguise_reply(self, event: AstrMessageEvent, command_text: str) -> bool:
+        """若指令命中伪装配置，为事件挂载替换回复字段。"""
+        disguise_reply_texts = self._get_disguise_reply_texts(command_text)
+        if disguise_reply_texts is None:
+            return False
+
+        event.set_extra(DISGUISE_REPLY_EXTRA_KEY, disguise_reply_texts)
+        return True
+
+
     async def _initialize_all_commands(self):
         """初始化时获取所有已注册的指令，并与现有免唤醒指令取并集"""
         try:
-            from astrbot.core.star.command_management import list_commands
             commands = await list_commands()
             plugin_command_map = self._group_enabled_command_names_by_plugin(commands)
 
@@ -217,8 +330,6 @@ class MultiExecutePlugin(Star):
             return
 
         try:
-            from astrbot.core.star.command_management import list_commands
-
             commands = await list_commands()
             plugin_cmd_names = self._extract_enabled_command_names(
                 commands,
@@ -357,7 +468,27 @@ class MultiExecutePlugin(Star):
 
         return True
 
-    @filter.event_message_type(filter.EventMessageType.ALL)
+    @filter.on_decorating_result() 
+    async def on_disguise_reply(self, event: AstrMessageEvent):
+        """在命中伪装指令时重写回复：有文本则随机选一条，无文本则静默。"""
+        extra = event.get_extra(DISGUISE_REPLY_EXTRA_KEY)
+        if extra is None:
+            return
+
+        try:
+            reply_texts = list(extra)
+        except Exception:
+            return
+
+        selected = random.choice(reply_texts) if reply_texts else ""
+
+        if selected:
+            event.set_result(event.plain_result(selected))
+        else:
+            event.set_result(event.make_result())
+
+
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=999)
     async def on_message(self, event: AstrMessageEvent):
         """监听所有消息，处理指令模拟器"""
         # 跳过由本插件创建的事件
@@ -372,61 +503,62 @@ class MultiExecutePlugin(Star):
         if isinstance(msg_id, str) and msg_id.startswith("command_trigger_"):
             return
 
-        # 检查免唤醒白名单群组
-        if not self._is_no_wake_trigger_allowed(event):
-            return
-
-        # 获取唤醒前缀
-        wake_prefixes = self._get_wake_prefixes()
-        raw_msg_str = getattr(getattr(event, "message_obj", None), "message_str", "")
-        if isinstance(raw_msg_str, str):
-            for prefix in wake_prefixes:
-                if raw_msg_str.startswith(prefix):
-                    return
-
-        # 检查事件是否已经是指令（避免重复触发）
-        if hasattr(event, 'is_at_or_wake_command') and event.is_at_or_wake_command:
-            logger.debug(f"[指令模拟器] 跳过已识别为指令的事件: {event.message_str}")
-            return
-
         # 提取纯文本内容
         text = event.message_str.strip() if event.message_str else ""
         if not text:
             return
 
-        # 跳过已经带命令前缀的消息
-        if any(text.startswith(prefix) for prefix in wake_prefixes):
-            logger.debug(f"[指令模拟器] 跳过命令格式消息: '{text}'")
+        is_wake = bool(getattr(event, "is_at_or_wake_command", False))
+
+        # 先判定是否命令（基于文本提取命令 key），否则直接跳过
+        command_key = self._extract_command_key(text)
+        if not command_key:
             return
 
-        # 如果已 @ 机器人或回复机器人，交给正常唤醒流程处理，避免重复触发
-        try:
-            self_id = str(event.get_self_id())
-            for comp in event.get_messages() or []:
-                if isinstance(comp, At) and str(comp.qq) == self_id:
-                    return
-                if hasattr(comp, "sender_id") and str(getattr(comp, "sender_id", "")) == self_id:
-                    return
-        except Exception:
-            pass
+        # 获取唤醒前缀
+        wake_prefixes = self._get_wake_prefixes()
 
-        # 检查是否匹配免唤醒指令（前缀匹配，支持指令后带参数）
-        matched_command = None
-        for command in self.no_wake_commands:
-            if self._is_valid_command_match(text, command):
-                # 优先选择更长的指令匹配（避免短指令误匹配）
-                if matched_command is None or len(command) > len(matched_command):
-                    matched_command = command
+        # 非唤醒路径：继续做免唤醒匹配并触发转命令
+        if not is_wake:
+            # 免唤醒仅在允许的群组触发
+            if not self._is_no_wake_trigger_allowed(event):
+                return
 
-        if matched_command:
+            # 兼容命令前缀与无前缀命令，统一用于免唤醒匹配
+            matched_prefix = ""
+            normalized_text = text
+            if wake_prefixes:
+                for prefix in wake_prefixes:
+                    if prefix and text.startswith(prefix):
+                        matched_prefix = prefix
+                        normalized_text = text[len(prefix):].lstrip()
+                        break
+
+            if not normalized_text:
+                return
+
+            # 检查是否匹配免唤醒指令（前缀匹配，支持指令后带参数）
+            matched_command = None
+            for command in self.no_wake_commands:
+                if self._is_valid_command_match(normalized_text, command):
+                    # 优先选择更长的指令匹配（避免短指令误匹配）
+                    if matched_command is None or len(command) > len(matched_command):
+                        matched_command = command
+
+            if not matched_command:
+                return
+
             # 获取指令后面的内容（参数部分）
-            suffix = text[len(matched_command):]
-            command_prefix = wake_prefixes[0] if wake_prefixes else "/"
+            suffix = normalized_text[len(matched_command):]
+            command_prefix = matched_prefix if matched_prefix else (wake_prefixes[0] if wake_prefixes else "/")
             new_command = f"{command_prefix}{matched_command}{suffix}"
 
-            # 提取原始消息组件，并补充唤醒前缀
+            # 提取原始消息组件，并补充/保留唤醒前缀
             original_components = self._extract_message_components(event)
-            prefixed_components = self._build_prefixed_components(original_components, command_prefix)
+            if matched_prefix:
+                prefixed_components = original_components
+            else:
+                prefixed_components = self._build_prefixed_components(original_components, command_prefix)
 
             # 获取原始事件的管理员状态
             is_admin = False
@@ -435,41 +567,31 @@ class MultiExecutePlugin(Star):
             except (AttributeError, TypeError):
                 pass
 
-            logger.info(f"[指令模拟器] 匹配免唤醒指令 '{matched_command}' → 转换为 '{new_command}'")
-            if prefixed_components:
-                logger.info(f"[指令模拟器] 保留 {len(prefixed_components)} 个原始消息组件")
+            # 获取发送者用于创建事件
+            sender_id = str(event.get_sender_id())
+            sender_name = event.get_sender_name() if hasattr(event, "get_sender_name") else "用户"
 
-            try:
-                # 获取发送者信息
-                sender_id = str(event.get_sender_id())
-                sender_name = event.get_sender_name() if hasattr(event, 'get_sender_name') else "用户"
+            temp_event = self.event_factory.create_event(
+                unified_msg_origin=event.unified_msg_origin,
+                command=new_command,
+                creator_id=sender_id,
+                creator_name=sender_name,
+                original_components=prefixed_components,
+                is_admin=is_admin,
+                self_id=event.get_self_id()
+            )
 
-                # 使用 EventFactory 创建新的命令事件
-                new_event = self.event_factory.create_event(
-                    unified_msg_origin=event.unified_msg_origin,
-                    command=new_command,
-                    creator_id=sender_id,
-                    creator_name=sender_name,
-                    original_components=prefixed_components,
-                    is_admin=is_admin,
-                    self_id=event.get_self_id()
-                )
+            has_disguise = self._apply_disguise_reply(temp_event, new_command)
+            temp_event.set_extra("multi_execute_origin", True)
+            self.context.get_event_queue().put_nowait(temp_event)
+            logger.debug(f"[指令模拟器] 命中免唤醒指令={matched_command}, 命中伪装={has_disguise}")
+            logger.info(f"[指令模拟器] 已派发命令事件: {new_command}")
+            event.stop_event()
+            return
 
-                try:
-                    new_event.set_extra("multi_execute_origin", True)
-                except Exception:
-                    pass
+        # 唤醒路径：仅处理伪装，不处理免唤醒接管
+        self._apply_disguise_reply(event, text)
 
-                # 将新事件放入事件队列
-                self.context.get_event_queue().put_nowait(new_event)
-
-                logger.info(f"[指令模拟器] 已派发命令事件: {new_command}")
-
-                # 阻止原消息继续传播，避免 LLM 响应
-                event.stop_event()
-
-            except Exception as e:
-                logger.error(f"[指令模拟器] 派发事件失败: {e}")
 
     @filter.regex(r"^(\d+)x\s+(.*)")
     async def multi_execute(self, event: AstrMessageEvent):
@@ -579,6 +701,7 @@ class MultiExecutePlugin(Star):
                 is_admin=is_admin,
                 self_id=self_id
             )
+            self._apply_disguise_reply(new_event, command)
 
             # 将新事件放入事件队列
             self.context.get_event_queue().put_nowait(new_event)
@@ -593,11 +716,7 @@ class MultiExecutePlugin(Star):
         pass
 
     def _extract_at_user(self, event: AstrMessageEvent) -> tuple[str | None, str | None]:
-        """从消息链中提取第一个非bot的艾特用户ID和用户名
-
-        Returns:
-            (user_id, user_name) 元组，user_name 可能是 None
-        """
+        """从消息链中提取第一个非bot的艾特用户ID和用户名"""
         messages = event.get_messages()
         self_id = event.get_self_id()
         for comp in messages:
@@ -611,11 +730,7 @@ class MultiExecutePlugin(Star):
         return None, None
 
     def _extract_after_target_at(self, event: AstrMessageEvent, target_user_id: str) -> list:
-        """提取目标用户艾特之后的所有消息组件
-
-        Returns:
-            之后的消息组件列表
-        """
+        """提取目标用户艾特之后的所有消息组件"""
         messages = event.get_messages()
         result = []
         found_target_at = False
@@ -630,14 +745,7 @@ class MultiExecutePlugin(Star):
         return result
 
     def _is_user_admin(self, user_id: str) -> bool:
-        """检查指定用户是否是管理员
-
-        Args:
-            user_id: 用户ID
-
-        Returns:
-            是否是管理员（从框架配置中检查）
-        """
+        """检查指定用户是否是管理员"""
         try:
             config = self.context.get_config()
             admins_id = config.get('admins_id', [])
@@ -731,6 +839,7 @@ class MultiExecutePlugin(Star):
             sender_id=target_user_id,
             sender_name=final_user_name
         )
+        self._apply_disguise_reply(new_event, command)
 
         # 将新事件放入事件队列
         self.context.get_event_queue().put_nowait(new_event)

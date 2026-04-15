@@ -14,55 +14,100 @@
         "type": "bool",
         "default": false
     },
-    "interval": {
-        "description": "执行间隔时间 (秒)",
-        "hint": "连续执行指令之间的间隔时间。",
-        "type": "int",
-        "default": 1
-    },
-    "max_times": {
-        "description": "最大执行次数限制",
-        "hint": "单次指令连续执行的最大次数限制。",
-        "type": "int",
-        "default": 10
-    },
     "show_start_message": {
         "description": "显示开始执行提示",
         "hint": "开启后，模拟执行时会发送一条提示消息（如：开始连续执行 3 次...）。",
         "type": "bool",
         "default": false
     },
-    "all_commands_no_wake": {
-        "description": "所有指令免唤醒",
-        "hint": "开启后，所有已注册的指令都无需前缀即可触发。",
-        "type": "bool",
-        "default": false
-    },
-    "no_wake_commands": {
-        "description": "免唤醒指令列表",
-        "hint": "无需唤醒前缀即可触发的指令列表。",
-        "type": "list",
+    "multiply": {
+        "type": "object",
+        "description": "倍增指令",
+        "hint": "配置倍增指令的执行间隔和最大执行次数限制。",
         "items": {
-            "type": "string"
-        },
-        "default": []
+            "interval": {
+                "description": "执行间隔时间 (秒)",
+                "hint": "连续执行指令之间的间隔时间。",
+                "type": "int",
+                "default": 1
+            },
+            "max_times": {
+                "description": "最大执行次数限制",
+                "hint": "单次指令连续执行的最大次数限制。",
+                "type": "int",
+                "default": 10
+            }
+        }
     },
-    "no_wake_blacklist": {
-        "description": "需唤醒指令列表",
-        "hint": "在这些指令即使在所有指令免唤醒模式下，仍然需要前缀。",
-        "type": "list",
+    "no_wake": {
+        "type": "object",
+        "description": "免唤醒指令",
+        "hint": "配置无需唤醒即可触发的指令。",
         "items": {
-            "type": "string"
-        },
-        "default": []
+            "all_commands_no_wake": {
+                "description": "所有指令免唤醒",
+                "hint": "开启后，所有已注册的指令都无需唤醒即可触发。",
+                "type": "bool",
+                "default": false
+            },
+            "no_wake_commands": {
+                "description": "免唤醒指令列表",
+                "hint": "无需唤醒即可触发的指令列表。",
+                "type": "list",
+                "items": {
+                    "type": "string"
+                },
+                "default": []
+            },
+            "no_wake_blacklist": {
+                "description": "需唤醒指令列表",
+                "hint": "在这些指令即使在所有指令免唤醒模式下，仍然需要唤醒。",
+                "type": "list",
+                "items": {
+                    "type": "string"
+                },
+                "default": []
+            },
+            "no_wake_whitelist_groups": {
+                "description": "免唤醒白名单群组",
+                "hint": "配置允许使用免唤醒触发的群组，为空表示全局可用。",
+                "type": "list",
+                "items": {
+                    "type": "string"
+                },
+                "default": []
+            }
+        }
     },
-    "no_wake_whitelist_groups": {
-        "description": "免唤醒白名单群组",
-        "hint": "配置允许使用免唤醒触发的群组，为空表示全局可用。",
-        "type": "list",
-        "items": {
-            "type": "string"
-        },
-        "default": []
+    "disguise": {
+        "type": "template_list",
+        "description": "伪装指令",
+        "hint": "配置免唤醒指令触发后的替换回复。若回复列表为空，则静默。",
+        "default": [],
+        "templates": {
+            "default": {
+                "name": "指令伪装项",
+                "items": {
+                    "target_command": {
+                        "description": "目标指令",
+                        "hint": "支持单个命令或命令别名列表，无需唤醒前缀。",
+                        "type": "list",
+                        "default": [],
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "reply_texts": {
+                        "description": "回复内容",
+                        "hint": "可填写多条回复，触发时随机返回一条；留空表示静默。",
+                        "type": "list",
+                        "default": [],
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
     }
 }
