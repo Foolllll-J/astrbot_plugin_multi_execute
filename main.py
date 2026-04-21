@@ -296,6 +296,26 @@ class MultiExecutePlugin(Star):
         event.set_extra(DISGUISE_REPLY_EXTRA_KEY, disguise_reply_texts)
         return True
 
+    def _stringify_result_for_log(self, event: AstrMessageEvent) -> str:
+        """将当前事件结果转为便于日志查看的字符串。"""
+        result = event.get_result()
+        if result is None:
+            return "[无回复]"
+
+        try:
+            text = result.get_plain_text(with_other_comps_mark=True).strip()
+        except Exception as e:
+            logger.warning(f"[指令模拟器] 读取伪装前回复失败: {e}")
+            return "[回复解析失败]"
+
+        if text:
+            return text
+
+        if getattr(result, "chain", None):
+            return "[空文本回复]"
+
+        return "[无回复]"
+
 
     async def _initialize_all_commands(self):
         """初始化时获取所有已注册的指令，并与现有免唤醒指令取并集"""
@@ -480,7 +500,13 @@ class MultiExecutePlugin(Star):
         except Exception:
             return
 
+        original_reply = self._stringify_result_for_log(event)
         selected = random.choice(reply_texts) if reply_texts else ""
+
+        logger.info(
+            f"[指令模拟器] 伪装回复前原始结果: 指令：{event.message_str}, "
+            f"原始回复：{original_reply}"
+        )
 
         if selected:
             event.set_result(event.plain_result(selected))
@@ -578,7 +604,10 @@ class MultiExecutePlugin(Star):
                 creator_name=sender_name,
                 original_components=prefixed_components,
                 is_admin=is_admin,
-                self_id=event.get_self_id()
+                self_id=event.get_self_id(),
+                source_message_id=getattr(
+                    getattr(event, "message_obj", None), "message_id", None
+                ),
             )
 
             has_disguise = self._apply_disguise_reply(temp_event, new_command)
@@ -699,7 +728,10 @@ class MultiExecutePlugin(Star):
                 creator_name=sender_name,
                 original_components=new_chain,
                 is_admin=is_admin,
-                self_id=self_id
+                self_id=self_id,
+                source_message_id=getattr(
+                    getattr(event, "message_obj", None), "message_id", None
+                ),
             )
             self._apply_disguise_reply(new_event, command)
 
@@ -837,7 +869,10 @@ class MultiExecutePlugin(Star):
             is_admin=target_is_admin,
             self_id=self_id,
             sender_id=target_user_id,
-            sender_name=final_user_name
+            sender_name=final_user_name,
+            source_message_id=getattr(
+                getattr(event, "message_obj", None), "message_id", None
+            ),
         )
         self._apply_disguise_reply(new_event, command)
 

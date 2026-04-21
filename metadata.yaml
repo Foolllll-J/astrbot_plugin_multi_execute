@@ -1,7 +1,7 @@
 name: astrbot_plugin_multi_execute
 display_name: 指令模拟器
 desc: 支持模拟其他用户执行指令、自动连续执行指令、免唤醒触发指令和伪装指令回复。
-version: v1.3.0
+version: v1.3.1
 author: Foolllll
 repo: https://github.com/Foolllll-J/astrbot_plugin_multi_execute
 astrbot_version: ">=4.10.4"

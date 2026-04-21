@@ -37,7 +37,8 @@ class EventFactory:
         is_admin: bool = False,
         self_id: str = None,
         sender_id: str = None,
-        sender_name: str = None
+        sender_name: str = None,
+        source_message_id: str = None,
     ) -> AstrMessageEvent:
         """创建事件对象，根据平台类型自动选择正确的事件类"""
 
@@ -70,7 +71,8 @@ class EventFactory:
         # 创建基础消息对象，传递原始组件
         msg = self._create_message_object(
             command, session_id, message_type, creator_id,
-            creator_name, platform_instance, original_components, self_id
+            creator_name, platform_instance, original_components, self_id,
+            source_message_id
         )
 
         # 创建平台元数据
@@ -131,7 +133,8 @@ class EventFactory:
         creator_name: str = None,
         platform_instance=None,
         original_components: list = None,
-        self_id: str = None
+        self_id: str = None,
+        source_message_id: str = None
     ) -> AstrBotMessage:
         """创建消息对象
         
@@ -144,6 +147,7 @@ class EventFactory:
             platform_instance: 平台实例
             original_components: 原始消息中的非文本组件（如 At 组件）
             self_id: 机器人ID
+            source_message_id: 原始触发消息ID
         """
         msg = AstrBotMessage()
         msg.message_str = command
@@ -158,7 +162,10 @@ class EventFactory:
             msg.self_id = ""
             logger.debug("未提供机器人ID，使用空字符串")
 
-        msg.message_id = "command_trigger_" + str(int(time.time()))
+        if source_message_id:
+            msg.message_id = str(source_message_id)
+        else:
+            msg.message_id = "command_trigger_" + str(int(time.time()))
 
         # 设置发送者信息
         msg.sender = MessageMember(user_id=creator_id, nickname=creator_name or "用户")
