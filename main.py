@@ -512,6 +512,7 @@ class MultiExecutePlugin(Star):
             event.set_result(event.plain_result(selected))
         else:
             event.set_result(event.make_result())
+            event.stop_event()
 
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=999)
