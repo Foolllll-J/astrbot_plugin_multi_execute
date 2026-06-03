@@ -1,7 +1,7 @@
 {
     "whitelist": {
         "description": "使用者白名单",
-        "hint": "填入用户 ID 列表，不填表示所有人可用。Bot 管理员默认可用。",
+        "hint": "填入允许使用「倍增」和「模拟」功能的用户 ID，留空表示所有人可用。管理员始终可用。",
         "type": "list",
         "items": {
             "type": "string"
@@ -10,13 +10,7 @@
     },
     "prefix_mode": {
         "description": "前缀模式",
-        "hint": "开启后，使用模拟或倍增指令时，指令参数前需附带唤醒前缀。",
-        "type": "bool",
-        "default": false
-    },
-    "show_start_message": {
-        "description": "显示开始执行提示",
-        "hint": "开启后，模拟执行时会发送一条提示消息（如：开始连续执行 3 次...）。",
+        "hint": "开启后，使用「倍增」和「模拟」时，指令前需附带唤醒前缀。",
         "type": "bool",
         "default": false
     },

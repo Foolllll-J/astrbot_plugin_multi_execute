@@ -30,7 +30,6 @@ class MultiExecutePlugin(Star):
         self.interval = multiply_section_config.get('interval', 1)
         self.max_times = multiply_section_config.get('max_times', 10)
         self.prefix_mode = self.config.get('prefix_mode', True)
-        self.show_start_message = self.config.get('show_start_message', True)
         self.all_commands_no_wake = no_wake_section_config.get('all_commands_no_wake', False)
         self.no_wake_blacklist = set(no_wake_section_config.get('no_wake_blacklist', []))
         self.no_wake_commands = self._parse_commands(no_wake_section_config.get('no_wake_commands', []))
@@ -707,10 +706,7 @@ class MultiExecutePlugin(Star):
             else:
                 new_chain.insert(0, Plain(added_prefix))
 
-        start_msg = f"开始连续执行 {times} 次指令: {command}，间隔 {self.interval} 秒"
-        logger.info(start_msg)
-        if self.show_start_message:
-            yield event.plain_result(start_msg)
+        logger.info(f"开始连续执行 {times} 次指令: {command}，间隔 {self.interval} 秒")
 
         # 获取发送者信息
         sender_id = event.get_sender_id()
@@ -846,10 +842,7 @@ class MultiExecutePlugin(Star):
         # 使用获取到的用户名，如果没有则使用默认值
         final_user_name = target_user_name if target_user_name else f"用户{target_user_id}"
 
-        start_msg = f"开始模拟用户 {final_user_name} 执行指令: {command}"
-        logger.info(start_msg)
-        if self.show_start_message:
-            yield event.plain_result(start_msg)
+        logger.info(f"开始模拟用户 {final_user_name} 执行指令: {command}")
 
         # 终止事件传播，防止继续触发 LLM
         event.stop_event()
