@@ -208,11 +208,28 @@ class EventFactory:
         session_id: str,
         platform_instance=None,
     ) -> AstrMessageEvent:
-        """根据平台类型创建特定的事件对象
-        
-        尝试动态导入对应平台的事件类，失败时回退到基础事件。
-        """
+        """根据平台类型创建特定的事件对象。
 
+        优先使用平台适配器的 create_event 方法（AstrBot >= v4.26）。
+        如果不可用则回退到动态导入旧方案。
+        """
+        if platform_instance is None:
+            platform_instance = self._get_platform_instance(meta.id)
+
+        # 新路径：委托给平台适配器 create_event
+        if platform_instance and hasattr(platform_instance, 'create_event'):
+            try:
+                event = platform_instance.create_event(msg)
+                logger.debug(f"通过平台适配器 create_event 创建事件: {platform_name}")
+                return event
+            except Exception as e:
+                logger.warning(f"平台适配器 create_event 失败，回退旧路径: {e}")
+
+        # WebChat 特殊处理：不需要平台实例
+        if platform_name == "webchat":
+            return self._create_webchat_event(command, msg, meta, session_id)
+
+        # 旧路径：动态导入
         # 平台事件类映射：(模块路径, 类名, 平台实例属性名)
         platform_event_map = {
             "aiocqhttp": (
@@ -256,10 +273,6 @@ class EventFactory:
                 "client",
             ),
         }
-
-        # WebChat 特殊处理：不需要平台实例
-        if platform_name == "webchat":
-            return self._create_webchat_event(command, msg, meta, session_id)
 
         if platform_name in platform_event_map:
             module_path, class_name, attr_name = platform_event_map[platform_name]

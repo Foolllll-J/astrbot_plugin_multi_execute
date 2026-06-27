@@ -622,14 +622,14 @@ class MultiExecutePlugin(Star):
         self._apply_disguise_reply(event, text)
 
 
-    @filter.regex(r"^(\d+)x\s+(.*)")
+    @filter.regex(r"^(\d+)[xX]\s+(.*)")
     async def multi_execute(self, event: AstrMessageEvent):
         """多次执行指令。用法：3x 指令"""
         if not self._is_allowed(event):
             yield event.plain_result("抱歉，你没有权限使用该指令。")
             return
 
-        match = re.search(r"^(\d+)x\s+(.*)", event.message_str)
+        match = re.search(r"^(\d+)[xX]\s+(.*)", event.message_str)
         if not match:
             return
 
