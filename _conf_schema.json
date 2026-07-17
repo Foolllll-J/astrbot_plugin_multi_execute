@@ -76,11 +76,11 @@
     "disguise": {
         "type": "template_list",
         "description": "伪装指令",
-        "hint": "配置免唤醒指令触发后的替换回复。若回复列表为空，则静默。",
+        "hint": "回复伪装：替换指令的回复内容。指令别名：将别名映射为实际指令/关键词。",
         "default": [],
         "templates": {
             "default": {
-                "name": "指令伪装项",
+                "name": "回复伪装项",
                 "items": {
                     "target_command": {
                         "description": "目标指令",
@@ -94,6 +94,29 @@
                     "reply_texts": {
                         "description": "回复内容",
                         "hint": "可填写多条回复，触发时随机返回一条；留空表示静默。",
+                        "type": "list",
+                        "default": [],
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "alias": {
+                "name": "指令别名项",
+                "items": {
+                    "target_commands": {
+                        "description": "目标指令",
+                        "hint": "实际执行的指令/关键词，多条则随机触发一条。",
+                        "type": "list",
+                        "default": [],
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "alias_commands": {
+                        "description": "指令别名",
+                        "hint": "用户可输入的别名，支持多条；任意匹配即触发。",
                         "type": "list",
                         "default": [],
                         "items": {
