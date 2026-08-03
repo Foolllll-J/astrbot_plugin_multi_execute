@@ -1,6 +1,11 @@
+import shutil
+import uuid
+from pathlib import Path
+
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
-from astrbot.api.message_components import Plain, At
+from astrbot.api.message_components import Image, Plain, Record, Reply, At
+from astrbot.core.utils.astrbot_path import get_astrbot_temp_path
 
 
 def get_wake_prefixes(context) -> list[str]:
@@ -73,6 +78,57 @@ def extract_message_components(event: AstrMessageEvent) -> list:
                 components.append(comp)
     except (AttributeError, TypeError) as e:
         logger.warning(f"[指令模拟器] 提取消息组件时出错: {e}")
+    return components
+
+
+def refresh_temp_media(components: list, temp_event: AstrMessageEvent) -> list:
+    """为伪造事件重建媒体临时文件，避免引用已删除的原事件临时文件。"""
+    temp_root = Path(get_astrbot_temp_path()).resolve()
+
+    def _copy_owned_temp_file(comp: object) -> None:
+        src_path = None
+        for attr in ("url", "file", "path"):
+            ref = getattr(comp, attr, None)
+            if not isinstance(ref, str) or not ref:
+                continue
+            try:
+                resolved = Path(ref).resolve()
+                resolved.relative_to(temp_root)
+            except (OSError, ValueError):
+                continue
+            if not resolved.is_file():
+                continue
+            src_path = resolved
+            break
+
+        if src_path is None:
+            return
+
+        dst = temp_root / f"multi_execute_{uuid.uuid4().hex}{src_path.suffix or '.tmp'}"
+        try:
+            shutil.copy2(src_path, dst)
+        except OSError as e:
+            logger.warning(f"[指令模拟器] 复制媒体临时文件失败: {e}")
+            return
+
+        for attr in ("url", "file", "path"):
+            ref = getattr(comp, attr, None)
+            if isinstance(ref, str) and ref:
+                try:
+                    if Path(ref).resolve() == src_path:
+                        setattr(comp, attr, str(dst))
+                except OSError:
+                    pass
+        temp_event.track_temporary_local_file(str(dst))
+
+    for comp in components:
+        if isinstance(comp, Reply):
+            for sub in getattr(comp, "chain", None) or []:
+                if isinstance(sub, (Image, Record)):
+                    _copy_owned_temp_file(sub)
+        elif isinstance(comp, (Image, Record)):
+            _copy_owned_temp_file(comp)
+
     return components
 
 

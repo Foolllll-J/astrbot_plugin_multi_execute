@@ -1,6 +1,6 @@
 from astrbot.api import logger
 from astrbot.core.star.command_management import list_commands
-from .command_utils import get_wake_prefixes, parse_commands
+from .command_utils import get_wake_prefixes, is_valid_command_match, parse_commands
 
 
 class NoWakeManager:
@@ -20,6 +20,22 @@ class NoWakeManager:
 
     def get_wake_prefixes(self) -> list[str]:
         return get_wake_prefixes(self.context)
+
+    def is_no_wake_text(self, text: str, wake_prefixes: list[str]) -> bool:
+        """判断文本（去除唤醒前缀后）是否命中免唤醒指令列表。"""
+        if not self.no_wake_commands or not text:
+            return False
+        normalized_text = text
+        for prefix in wake_prefixes:
+            if prefix and text.startswith(prefix):
+                normalized_text = text[len(prefix) :].lstrip()
+                break
+        if not normalized_text:
+            return False
+        for command in self.no_wake_commands:
+            if is_valid_command_match(normalized_text, command):
+                return True
+        return False
 
     def _plugin_cache_key(
         self,

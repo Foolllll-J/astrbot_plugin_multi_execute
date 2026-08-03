@@ -15,6 +15,7 @@ from .core.command_utils import (
     extract_message_components,
     build_prefixed_components,
     replace_first_plain_text,
+    refresh_temp_media,
     extract_at_user,
     extract_after_target_at,
     is_user_admin,
@@ -96,9 +97,18 @@ class MultiExecutePlugin(Star):
             pass
 
         if not alias_processed:
-            alias_target_text = self.alias.check_alias(
-                text, self.no_wake.get_wake_prefixes()
-            )
+            wake_prefixes = self.no_wake.get_wake_prefixes()
+            alias_target_text = self.alias.check_alias(text, wake_prefixes)
+            if alias_target_text and not (
+                is_wake
+                or (
+                    is_no_wake_trigger_allowed(
+                        event, self.no_wake.whitelist_groups
+                    )
+                    and self.no_wake.is_no_wake_text(text, wake_prefixes)
+                )
+            ):
+                alias_target_text = None
             if alias_target_text:
                 original_components = extract_message_components(event)
                 rewritten_components = replace_first_plain_text(
@@ -128,6 +138,7 @@ class MultiExecutePlugin(Star):
                         getattr(event, "message_obj", None), "message_id", None
                     ),
                 )
+                refresh_temp_media(rewritten_components, temp_event)
                 self.disguise.apply_reply(temp_event, alias_target_text)
                 temp_event.set_extra(DISGUISE_ALIAS_EXTRA_KEY, True)
                 try:
@@ -208,6 +219,7 @@ class MultiExecutePlugin(Star):
                     getattr(event, "message_obj", None), "message_id", None
                 ),
             )
+            refresh_temp_media(prefixed_components, temp_event)
 
             has_disguise = self.disguise.apply_reply(temp_event, new_command)
             temp_event.set_extra("multi_execute_origin", True)
