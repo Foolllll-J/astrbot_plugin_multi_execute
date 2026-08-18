@@ -137,8 +137,18 @@ def build_prefixed_components(components: list, prefix: str) -> list:
         return list(components) if components else []
     if not components:
         return [Plain(prefix)]
-    first = components[0]
     new_components = []
+    if isinstance(components[0], Reply):
+        # 引用消息须保持消息链首位（QQ 消息格式约定），前缀追加到其后的文本段
+        new_components.append(components[0])
+        rest = list(components[1:])
+        if rest and isinstance(rest[0], Plain):
+            rest[0] = Plain(prefix + rest[0].text)
+        else:
+            rest.insert(0, Plain(prefix))
+        new_components.extend(rest)
+        return new_components
+    first = components[0]
     if isinstance(first, Plain):
         new_components.append(Plain(prefix + first.text))
         new_components.extend(components[1:])
