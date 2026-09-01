@@ -18,7 +18,7 @@ def get_wake_prefixes(context) -> list[str]:
             return [prefixes]
         return list(prefixes)
     except Exception as e:
-        logger.warning(f"获取唤醒前缀失败: {e}")
+        logger.warning("[指令模拟器] 获取唤醒前缀失败: %s", e)
         return []
 
 
@@ -66,6 +66,22 @@ def is_valid_command_match(text: str, command: str) -> bool:
     return True
 
 
+def ensure_wake_prefix(command: str, wake_prefixes: list[str]) -> tuple[str, str]:
+    """为待派发指令补上唤醒前缀，并返回新增的前缀。"""
+    text = command.strip()
+    for prefix in wake_prefixes:
+        if isinstance(prefix, str) and prefix and text.startswith(prefix):
+            return text, ""
+
+    prefix = next(
+        (item for item in wake_prefixes if isinstance(item, str) and item),
+        "",
+    )
+    if not prefix:
+        return text, ""
+    return prefix + text, prefix
+
+
 def extract_message_components(event: AstrMessageEvent) -> list:
     components = []
     try:
@@ -77,7 +93,7 @@ def extract_message_components(event: AstrMessageEvent) -> list:
             for comp in message_chain:
                 components.append(comp)
     except (AttributeError, TypeError) as e:
-        logger.warning(f"[指令模拟器] 提取消息组件时出错: {e}")
+        logger.warning("[指令模拟器] 提取消息组件时出错: %s", e)
     return components
 
 
@@ -108,7 +124,7 @@ def refresh_temp_media(components: list, temp_event: AstrMessageEvent) -> list:
         try:
             shutil.copy2(src_path, dst)
         except OSError as e:
-            logger.warning(f"[指令模拟器] 复制媒体临时文件失败: {e}")
+            logger.warning("[指令模拟器] 复制媒体临时文件失败: %s", e)
             return
 
         for attr in ("url", "file", "path"):
@@ -203,7 +219,7 @@ def stringify_result_for_log(event: AstrMessageEvent) -> str:
     try:
         text = result.get_plain_text(with_other_comps_mark=True).strip()
     except Exception as e:
-        logger.warning(f"[指令模拟器] 读取伪装前回复失败: {e}")
+        logger.warning("[指令模拟器] 读取伪装前回复失败: %s", e)
         return "[回复解析失败]"
     if text:
         return text
@@ -220,7 +236,9 @@ def parse_commands(commands_config: list | None = None) -> set:
             result.add(item.strip())
     if result:
         logger.info(
-            f"[指令模拟器] 插件已加载，共 {len(result)} 个免唤醒指令: {list(result)}"
+            "[指令模拟器] 已加载 %s 条手动免唤醒指令: %s",
+            len(result),
+            sorted(result),
         )
     return result
 
@@ -230,7 +248,8 @@ def is_allowed(event: AstrMessageEvent, whitelist: list) -> bool:
         return True
     if not whitelist:
         return True
-    return event.get_sender_id() in whitelist
+    allowed_users = {str(user_id) for user_id in whitelist}
+    return str(event.get_sender_id()) in allowed_users
 
 
 def is_no_wake_trigger_allowed(event: AstrMessageEvent, whitelist_groups: list) -> bool:
@@ -249,5 +268,5 @@ def is_user_admin(context, user_id: str) -> bool:
         admins_id = config.get("admins_id", [])
         return str(user_id) in [str(admin_id) for admin_id in admins_id]
     except Exception as e:
-        logger.warning(f"检查用户管理员权限失败: {e}")
+        logger.warning("[指令模拟器] 检查用户管理员权限失败: %s", e)
         return False

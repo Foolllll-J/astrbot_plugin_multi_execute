@@ -41,6 +41,9 @@ class AliasManager:
         self.alias_rules = rules
         return rules
 
+    def get_alias_names(self) -> set[str]:
+        return set(self.alias_rules)
+
     def check_alias(
         self, text: str, wake_prefixes: list[str] | None = None
     ) -> str | None:

@@ -21,9 +21,12 @@ class EventFactory:
             if platform_inst:
                 return platform_inst
         except Exception as e:
-            logger.warning(f"通过context.get_platform_inst获取平台实例失败: {e}")
+            logger.warning(
+                "[指令模拟器] 通过 context.get_platform_inst 获取平台实例失败: %s",
+                e,
+            )
 
-        logger.error(f"无法获取平台实例: {platform_id}")
+        logger.error("[指令模拟器] 无法获取平台实例: %s", platform_id)
         return None
 
     def create_event(
@@ -59,7 +62,9 @@ class EventFactory:
                     message_type = MessageType.FRIEND_MESSAGE
 
         logger.debug(
-            f"create_event: platform_id={platform_id}, unified_msg_origin={unified_msg_origin}"
+            "[指令模拟器] 创建事件: platform_id=%s, unified_msg_origin=%s",
+            platform_id,
+            unified_msg_origin,
         )
 
         # 获取平台实例
@@ -117,7 +122,7 @@ class EventFactory:
                     if hasattr(meta, "name"):
                         return meta.name
             except (AttributeError, TypeError) as e:
-                logger.warning(f"从平台实例获取类型失败: {e}")
+                logger.warning("[指令模拟器] 从平台实例获取类型失败: %s", e)
 
         return self._get_platform_type_from_origin(unified_msg_origin)
 
@@ -174,7 +179,7 @@ class EventFactory:
             msg.self_id = self_id
         else:
             msg.self_id = ""
-            logger.debug("未提供机器人ID，使用空字符串")
+            logger.debug("[指令模拟器] 未提供机器人 ID，使用空字符串")
 
         if source_message_id:
             msg.message_id = str(source_message_id)
@@ -241,10 +246,16 @@ class EventFactory:
         if platform_instance and hasattr(platform_instance, "create_event"):
             try:
                 event = platform_instance.create_event(msg)
-                logger.debug(f"通过平台适配器 create_event 创建事件: {platform_name}")
+                logger.debug(
+                    "[指令模拟器] 通过平台适配器 create_event 创建事件: %s",
+                    platform_name,
+                )
                 return event
             except Exception as e:
-                logger.warning(f"平台适配器 create_event 失败，回退旧路径: {e}")
+                logger.warning(
+                    "[指令模拟器] 平台适配器 create_event 失败，回退旧路径: %s",
+                    e,
+                )
 
         # WebChat 特殊处理：不需要平台实例
         if platform_name == "webchat":
@@ -333,12 +344,19 @@ class EventFactory:
             platform = platform_instance or self._get_platform_instance(meta.id)
 
             if not platform:
-                logger.warning(f"无法获取 {platform_name} 平台实例")
+                logger.warning(
+                    "[指令模拟器] 无法获取 %s 平台实例",
+                    platform_name,
+                )
                 return None
 
             # 检查平台实例是否具有所需属性
             if attr_name and not hasattr(platform, attr_name):
-                logger.warning(f"{platform_name} 平台实例缺少 '{attr_name}' 属性")
+                logger.warning(
+                    "[指令模拟器] %s 平台实例缺少 '%s' 属性",
+                    platform_name,
+                    attr_name,
+                )
                 return None
 
             module = importlib.import_module(module_path)
@@ -368,12 +386,22 @@ class EventFactory:
 
         except ImportError as e:
             logger.warning(
-                f"导入 {platform_name} 事件类失败（可能框架版本不兼容）: {e}"
+                "[指令模拟器] 导入 %s 事件类失败（可能框架版本不兼容）: %s",
+                platform_name,
+                e,
             )
         except (AttributeError, TypeError) as e:
-            logger.warning(f"创建 {platform_name} 事件实例失败: {e}")
+            logger.warning(
+                "[指令模拟器] 创建 %s 事件实例失败: %s",
+                platform_name,
+                e,
+            )
         except Exception as e:
-            logger.warning(f"创建 {platform_name} 事件时发生未知错误: {e}")
+            logger.warning(
+                "[指令模拟器] 创建 %s 事件时发生未知错误: %s",
+                platform_name,
+                e,
+            )
 
         return None
 
@@ -396,12 +424,12 @@ class EventFactory:
                 platform_meta=meta,
                 session_id=session_id,
             )
-            logger.debug("成功创建 WebChatMessageEvent")
+            logger.debug("[指令模拟器] 成功创建 WebChatMessageEvent")
             return event
         except ImportError as e:
-            logger.warning(f"导入 WebChatMessageEvent 失败: {e}")
+            logger.warning("[指令模拟器] 导入 WebChatMessageEvent 失败: %s", e)
         except (AttributeError, TypeError) as e:
-            logger.warning(f"创建 WebChatMessageEvent 失败: {e}")
+            logger.warning("[指令模拟器] 创建 WebChatMessageEvent 失败: %s", e)
 
         return self._create_base_event(command, msg, meta, session_id)
 
@@ -428,14 +456,23 @@ class EventFactory:
         # 尝试设置平台实例引用
         try:
             platform_instance = self._get_platform_instance(meta.id)
-            logger.debug(f"_create_base_event: 尝试获取平台实例，platform_id={meta.id}")
+            logger.debug(
+                "[指令模拟器] 创建基础事件时尝试获取平台实例: platform_id=%s",
+                meta.id,
+            )
             if platform_instance:
                 event.platform_instance = platform_instance
-                logger.debug(f"为基础事件设置平台实例: {meta.id}")
+                logger.debug(
+                    "[指令模拟器] 已为基础事件设置平台实例: %s",
+                    meta.id,
+                )
             else:
-                logger.warning(f"无法为基础事件获取平台实例: {meta.id}")
+                logger.warning(
+                    "[指令模拟器] 无法为基础事件获取平台实例: %s",
+                    meta.id,
+                )
         except (AttributeError, TypeError) as e:
-            logger.warning(f"设置基础事件平台实例失败: {e}")
+            logger.warning("[指令模拟器] 设置基础事件平台实例失败: %s", e)
 
-        logger.debug("使用基础 AstrMessageEvent")
+        logger.debug("[指令模拟器] 使用基础 AstrMessageEvent")
         return event

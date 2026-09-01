@@ -1,24 +1,92 @@
 {
-    "whitelist": {
-        "description": "使用者白名单",
-        "hint": "填入允许使用「倍增」和「模拟」功能的用户 ID，留空表示所有人可用。管理员始终可用。",
+    "simulate_allowed_users": {
+        "description": "模拟使用者白名单",
+        "hint": "填入允许使用「模拟」功能的用户 ID，留空表示所有人可用。管理员始终可用。",
         "type": "list",
         "items": {
             "type": "string"
         },
         "default": []
     },
-    "prefix_mode": {
-        "description": "前缀模式",
-        "hint": "开启后，使用「倍增」和「模拟」时，指令前需附带唤醒前缀。",
-        "type": "bool",
-        "default": false
+    "case_insensitive_command_groups": {
+        "description": "指令大小写兼容群组",
+        "hint": "填入群号后，这些群聊中的英文指令、指令组和别名均支持大小写混用；留空表示关闭。",
+        "type": "list",
+        "items": {
+            "type": "string"
+        },
+        "default": []
+    },
+    "command_access_rules": {
+        "type": "template_list",
+        "description": "指令黑白名单",
+        "hint": "按指令、用户和群组限制指令访问。群组列表为空时，规则在所有会话生效；填写群号后，仅在指定群聊生效。",
+        "default": [],
+        "templates": {
+            "default": {
+                "name": "指令访问规则",
+                "items": {
+                    "commands": {
+                        "description": "指令列表",
+                        "hint": "填写一条或多条指令名，指令别名会跟随对应的主指令生效。",
+                        "type": "list",
+                        "default": [],
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "policy": {
+                        "description": "用户策略",
+                        "hint": "黑名单限制名单内用户，白名单仅允许名单内用户。",
+                        "type": "string",
+                        "options": [
+                            "黑名单",
+                            "白名单"
+                        ],
+                        "default": "黑名单"
+                    },
+                    "users": {
+                        "description": "用户名单",
+                        "hint": "填写用户 ID。黑名单为空表示不限制；白名单为空的规则会被忽略。",
+                        "type": "list",
+                        "default": [],
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "groups": {
+                        "description": "群组范围",
+                        "hint": "填写群号后仅在这些群聊生效；留空表示所有会话生效，包括私聊。",
+                        "type": "list",
+                        "default": [],
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "notify_user": {
+                        "description": "无权限时回复提示",
+                        "hint": "开启后，用户触发被拦截的指令时会收到无权限提示；关闭后静默拦截。",
+                        "type": "bool",
+                        "default": true
+                    }
+                }
+            }
+        }
     },
     "multiply": {
         "type": "object",
         "description": "倍增指令",
         "hint": "配置倍增指令的执行间隔和最大执行次数限制。",
         "items": {
+            "allowed_users": {
+                "description": "倍增使用者白名单",
+                "hint": "填入允许使用「倍增」功能的用户 ID，留空表示所有人可用。管理员始终可用。",
+                "type": "list",
+                "items": {
+                    "type": "string"
+                },
+                "default": []
+            },
             "interval": {
                 "description": "执行间隔时间 (秒)",
                 "hint": "连续执行指令之间的间隔时间。",

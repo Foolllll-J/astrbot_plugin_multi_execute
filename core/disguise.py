@@ -79,8 +79,9 @@ class DisguiseManager:
         original_reply = stringify_result_for_log(event)
         selected = random.choice(reply_texts) if reply_texts else ""
         logger.info(
-            f"[指令模拟器] 伪装回复前原始结果: 指令：{event.message_str}, "
-            f"原始回复：{original_reply}"
+            "[指令模拟器] 伪装回复前原始结果: 指令：%s，原始回复：%s",
+            event.message_str,
+            original_reply,
         )
         if selected:
             event.set_result(event.plain_result(selected))

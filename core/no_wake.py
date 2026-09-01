@@ -1,11 +1,11 @@
 from astrbot.api import logger
-from astrbot.core.star.command_management import list_commands
 from .command_utils import get_wake_prefixes, is_valid_command_match, parse_commands
 
 
 class NoWakeManager:
-    def __init__(self, context, config: dict, section_config: dict):
+    def __init__(self, context, config: dict, section_config: dict, command_catalog):
         self.context = context
+        self.command_catalog = command_catalog
         self.all_commands_no_wake = section_config.get("all_commands_no_wake", False)
         self.no_wake_blacklist = set(section_config.get("no_wake_blacklist", []))
         self.no_wake_commands: set[str] = set()
@@ -14,6 +14,7 @@ class NoWakeManager:
         )
         self.no_wake_commands = set(self._manual_no_wake_commands)
         self._plugin_no_wake_commands: dict[str, set[str]] = {}
+        self._last_global_command_snapshot: frozenset[str] | None = None
         self.whitelist_groups = [
             str(sid) for sid in section_config.get("no_wake_whitelist_groups", [])
         ]
@@ -36,6 +37,9 @@ class NoWakeManager:
             if is_valid_command_match(normalized_text, command):
                 return True
         return False
+
+    def get_configured_command_names(self) -> set[str]:
+        return set(self._manual_no_wake_commands)
 
     def _plugin_cache_key(
         self,
@@ -62,7 +66,7 @@ class NoWakeManager:
                 if md_name:
                     activated_names.add(md_name)
         except Exception as e:
-            logger.warning(f"[指令模拟器] 获取激活插件索引失败: {e}")
+            logger.warning("[指令模拟器] 获取激活插件索引失败: %s", e)
         return activated_modules, activated_names
 
     def _is_command_from_activated_plugin(
@@ -87,7 +91,7 @@ class NoWakeManager:
     ) -> set[str]:
         activated_modules, activated_names = self._get_activated_plugin_index()
         command_names: set[str] = set()
-        for cmd in commands:
+        for cmd in self._iter_command_records(commands):
             if not cmd.get("enabled", True):
                 continue
             if plugin_name and cmd.get("plugin") != plugin_name:
@@ -106,6 +110,16 @@ class NoWakeManager:
                 if alias and alias.strip():
                     command_names.add(alias.strip())
         return command_names
+
+    @staticmethod
+    def _iter_command_records(commands: list[dict]):
+        for command in commands:
+            if not isinstance(command, dict):
+                continue
+            yield command
+            sub_commands = command.get("sub_commands", [])
+            if isinstance(sub_commands, list):
+                yield from NoWakeManager._iter_command_records(sub_commands)
 
     def _group_enabled_command_names_by_plugin(
         self, commands: list[dict]
@@ -141,21 +155,28 @@ class NoWakeManager:
 
     async def initialize_all_commands(self):
         try:
-            commands = await list_commands()
+            commands = self.command_catalog.commands
             plugin_command_map = self._group_enabled_command_names_by_plugin(commands)
             rebuilt_map: dict[str, set[str]] = {}
             for cache_key, cmd_names in plugin_command_map.items():
                 rebuilt_map[cache_key] = self._apply_blacklist(cmd_names)
             self._plugin_no_wake_commands = rebuilt_map
             self._rebuild()
-            all_cmd_names = set()
-            for cmd_names in self._plugin_no_wake_commands.values():
-                all_cmd_names.update(cmd_names)
-            logger.info(
-                f"[指令模拟器] 全局免唤醒模式已启用，共 {len(all_cmd_names)} 个指令可免唤醒触发"
-            )
+            current_snapshot = frozenset(self.no_wake_commands)
+            if current_snapshot != self._last_global_command_snapshot:
+                action = (
+                    "已启用"
+                    if self._last_global_command_snapshot is None
+                    else "已刷新"
+                )
+                logger.info(
+                    "[指令模拟器] 全局免唤醒指令%s，共 %s 条",
+                    action,
+                    len(current_snapshot),
+                )
+                self._last_global_command_snapshot = current_snapshot
         except Exception as e:
-            logger.error(f"[指令模拟器] 获取所有指令失败: {e}")
+            logger.error("[指令模拟器] 获取所有指令失败: %s", e)
 
     async def refresh_for_plugin(self, metadata):
         if not self.all_commands_no_wake:
@@ -165,7 +186,7 @@ class NoWakeManager:
         if not plugin_name and not module_path:
             return
         try:
-            commands = await list_commands()
+            commands = self.command_catalog.commands
             plugin_cmd_names = self._extract_enabled_command_names(
                 commands,
                 plugin_name=plugin_name,
@@ -183,10 +204,12 @@ class NoWakeManager:
             added_count = len(self.no_wake_commands) - before_count
             if plugin_cmd_names or added_count != 0:
                 logger.info(
-                    f"[指令模拟器] 插件加载增量刷新完成: {plugin_name or module_path}，新增 {added_count} 个免唤醒指令"
+                    "[指令模拟器] 插件加载后已刷新免唤醒指令: %s，新增 %s 条",
+                    plugin_name or module_path,
+                    added_count,
                 )
         except Exception as e:
-            logger.warning(f"[指令模拟器] 插件加载增量刷新失败: {e}")
+            logger.warning("[指令模拟器] 插件加载后刷新免唤醒指令失败: %s", e)
 
     async def remove_for_plugin(self, metadata):
         if not self.all_commands_no_wake:
@@ -203,5 +226,7 @@ class NoWakeManager:
         self._rebuild()
         if removed > 0:
             logger.info(
-                f"[指令模拟器] 插件卸载增量刷新完成: {plugin_name or module_path}，移除 {removed} 个免唤醒指令"
+                "[指令模拟器] 插件卸载后已刷新免唤醒指令: %s，移除 %s 条",
+                plugin_name or module_path,
+                removed,
             )
