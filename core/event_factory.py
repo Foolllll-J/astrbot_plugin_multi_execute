@@ -8,6 +8,24 @@ from astrbot.api.message_components import Plain
 from astrbot.api.platform import MessageMember
 
 
+def extract_sender_extra(original_event) -> dict:
+    """透传原始事件 raw sender 中的 level/role 等字段，缺字段时返回空 dict。"""
+    if original_event is None:
+        return {}
+    try:
+        raw = getattr(getattr(original_event, "message_obj", None), "raw_message", None)
+        sender = raw.get("sender") if hasattr(raw, "get") else None
+        if not isinstance(sender, dict):
+            return {}
+        return {
+            k: sender[k]
+            for k in ("role", "level", "title", "card", "sex", "age", "area")
+            if sender.get(k) is not None
+        }
+    except Exception:
+        return {}
+
+
 class EventFactory:
     """事件工厂类，用于创建不同平台类型的事件对象"""
 
@@ -41,6 +59,7 @@ class EventFactory:
         sender_id: str = None,
         sender_name: str = None,
         source_message_id: str = None,
+        original_event=None,
     ) -> AstrMessageEvent:
         """创建事件对象，根据平台类型自动选择正确的事件类"""
 
@@ -86,6 +105,7 @@ class EventFactory:
             original_components,
             self_id,
             source_message_id,
+            extract_sender_extra(original_event),
         )
 
         # 创建平台元数据
@@ -155,6 +175,7 @@ class EventFactory:
         original_components: list = None,
         self_id: str = None,
         source_message_id: str = None,
+        sender_extra: dict | None = None,
     ) -> AstrBotMessage:
         """创建消息对象
 
@@ -208,13 +229,18 @@ class EventFactory:
                 message_chain.extend(original_components)
         msg.message = message_chain
 
-        # 设置raw_message属性
+        # 设置raw_message属性；sender 合并原始事件的 level/role 等字段，
+        # user_id/nickname 以本次模拟参数为准
+        sender_info = {"user_id": creator_id, "nickname": creator_name or "用户"}
+        if sender_extra:
+            for key, value in sender_extra.items():
+                sender_info.setdefault(key, value)
         msg.raw_message = {
             "message": command,
             "message_type": "group"
             if message_type == MessageType.GROUP_MESSAGE
             else "private",
-            "sender": {"user_id": creator_id, "nickname": creator_name or "用户"},
+            "sender": sender_info,
             "self_id": msg.self_id,
         }
 

@@ -228,6 +228,7 @@ class MultiExecutePlugin(Star):
                     original_components=rewritten_components,
                     is_admin=is_admin,
                     self_id=event.get_self_id(),
+                    original_event=event,
                     source_message_id=getattr(
                         getattr(event, "message_obj", None), "message_id", None
                     ),
@@ -315,6 +316,7 @@ class MultiExecutePlugin(Star):
                     original_components=rewritten_components,
                     is_admin=is_admin,
                     self_id=event.get_self_id(),
+                    original_event=event,
                     source_message_id=getattr(
                         getattr(event, "message_obj", None), "message_id", None
                     ),
@@ -415,6 +417,7 @@ class MultiExecutePlugin(Star):
                 original_components=prefixed_components,
                 is_admin=is_admin,
                 self_id=event.get_self_id(),
+                original_event=event,
                 source_message_id=getattr(
                     getattr(event, "message_obj", None), "message_id", None
                 ),
@@ -565,6 +568,7 @@ class MultiExecutePlugin(Star):
                 original_components=new_chain,
                 is_admin=is_admin,
                 self_id=self_id,
+                original_event=event,
                 source_message_id=getattr(
                     getattr(event, "message_obj", None), "message_id", None
                 ),
